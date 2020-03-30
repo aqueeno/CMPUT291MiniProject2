@@ -9,6 +9,8 @@ rt_cur = None
 sc_db = None
 sc_cur = None 
 
+OUTPUT = "brief"
+
 def init_databases():
     global rw_db, pt_db, rt_db, sc_db
     
@@ -50,7 +52,7 @@ def close_connection():
     
 def continue_query():
     while True:
-        cont = input("Would you like to search again? (y/n)")
+        cont = input("Would you like to search again? (y/n)\n> ")
         if cont.lower().startswith("n"):
             return True
         elif cont.lower().startswith("y"):
@@ -61,7 +63,7 @@ def continue_query():
 
 def process_text(string):
     all_queries = []
-    operators = [":", "<", ">"]
+    operators = ["=", ":", "<", ">"]
     for operator in operators:
         
         while operator in string:
@@ -80,8 +82,33 @@ def process_text(string):
         
     return all_queries
     
-def compute_results(quries, results):
-    pass
+def compute_results(queries, results):
+    #note print statements are just placeholders. Need functions to go here
+
+    for query in queries:
+        if "<" in query:
+            print("<")
+            #some function
+        elif ">" in query:
+            print(">")
+            #lessThan function
+        elif ":" in query:
+            print(":")
+            #handle this guy
+        elif query.endswith("%"):
+            print("%")
+            #handly 
+        elif "output=" in query:
+            print("change output boys", query)
+        else:
+            print("handle single word")
+
+
+
+
+
+
+
 
 def intersect(results):
     pass
@@ -100,7 +127,7 @@ def main():
     
     while True:
         results = [] #all search results tuples would be added in here
-        user_input = input("Enter your search: ")
+        user_input = input("Enter your search:\n> ")
         
         # queries is a list containing ALL queries
         # if the user entered "guitar price > 50"
@@ -118,6 +145,7 @@ def main():
     close_connection()
     
 if __name__ == "__main__":
+    
     main()
     #print(process_text(" score   :  4   guitar%   price   >   50  "))# was testing if I can seperate all the queries
     
