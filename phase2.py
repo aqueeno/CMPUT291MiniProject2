@@ -81,10 +81,35 @@ def process_text(string):
         all_queries.append(word)
         
     return all_queries
+
+def term_search(query, results):
+    left = query.split(":")[0]
+    term = query.split(":")[1].encode("utf-8")
+    
+    if left == "pterm":
+        row = pt_cur.set(term)
+        
+        while row is not None:
+            #res = rw_db.get(row[1])
+            #results.append(res)
+            results.append(row[1])
+            row = pt_cur.next_dup()
+            
+    elif left == "rterm":
+        row = rt_cur.set(term)
+        
+        while row is not None:
+            #res = rw_db.get(row[1])
+            #results.append(res)
+            results.append(row[1])
+            row = rt_cur.next_dup()
+    else:
+        print("Invalid input!")
+    
     
 def compute_results(queries, results):
     #note print statements are just placeholders. Need functions to go here
-
+    # in each function, handle partial matching (% symbol)
     for query in queries:
         if "<" in query:
             print("<")
@@ -94,12 +119,11 @@ def compute_results(queries, results):
             #lessThan function
         elif ":" in query:
             print(":")
-            #handle this guy
-        elif query.endswith("%"):
-            print("%")
-            #handly 
+            term_search(query, results)
+            
         elif "output=" in query:
-            print("change output boys", query)
+            print("change output boys")
+            
         else:
             print("handle single word")
 
@@ -126,15 +150,18 @@ def main():
     
     
     while True:
-        results = [] #all search results tuples would be added in here
+        results = [] #all review_ids are added here would be added in here
         user_input = input("Enter your search:\n> ")
         
         # queries is a list containing ALL queries
         # if the user entered "guitar price > 50"
         # this list would contain ["guitar", "price>50"]
-        queries = process_text(user_input)
+        queries = process_text(user_input.lower())
         # compute each query and add the searches to "results"
         compute_results(queries, results)
+        #for i in results:
+         #   print(i)
+            
         intersect(results) #get intersection of the tuple sets in this function
         print_table(results)
         
