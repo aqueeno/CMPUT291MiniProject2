@@ -90,14 +90,9 @@ def pterm_search(term, results):
         row = pt_cur.first()
         while row is not None:
             if row[0].decode("utf-8").startswith(term):
-                key = row[0]
-                break
+                rev_ids.append(row[1])
+                
             row = pt_cur.next()
-            
-        row = pt_cur.set(key)
-        while row is not None:
-            rev_ids.append(row[1])
-            row = pt_cur.next_dup()
     else:
             
         row = pt_cur.set(term.encode("utf-8"))
@@ -115,14 +110,9 @@ def rterm_search(term, results):
         row = rt_cur.first()
         while row is not None:
             if row[0].decode("utf-8").startswith(term):
-                key = row[0]
-                break
+                rev_ids.append(row[1])
             row = rt_cur.next()
-            
-        row = rt_cur.set(key)
-        while row is not None:
-            rev_ids.append(row[1])
-            row = rt_cur.next_dup()
+    
     else:
         row = rt_cur.set(term.encode("utf-8"))
         while row is not None:
@@ -201,7 +191,7 @@ def main():
         compute_results(queries, results)
         for i in results:
             print(i)
-            
+        
         intersect(results) #get intersection of the tuple sets in this function
         print_table(results)
         
