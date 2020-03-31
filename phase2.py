@@ -122,10 +122,23 @@ def rterm_search(term, results):
     results.append(set(rev_ids))
 
 def single_term_search(query, results):
+    #contains term in at least one of product title, review summary, or review text in reviews.txt
+    rev_ids = []
     if query.endswith("%"):
         query = query.replace("%","")
-    else: 
-        pass
+    else:
+        query = " "+query+" "
+
+    row = rw_cur.first()
+    while row is not None:
+        product_title = row[2].decode("utf-8")
+        review_summary = row[9].decode("utf-8")
+        review_text = row[10].decode("utf-8")
+        if query in product_title or query in review_summary or query in review_text:
+            rev_ids.append(row[0])
+        row = rw_cur.next()
+
+    results.append(set(rev_ids))
 
 def term_search(query, results):
     left = query.split(":")[0]
