@@ -82,30 +82,68 @@ def process_text(string):
         
     return all_queries
 
-def term_search(query, results):
-    left = query.split(":")[0]
-    term = query.split(":")[1].encode("utf-8")
-    
-    if left == "pterm":
-        row = pt_cur.set(term)
-        
-        while row is not None:
-            #res = rw_db.get(row[1])
-            #results.append(res)
-            results.append(row[1])
-            row = pt_cur.next_dup()
+def pterm_search(term, results):
+    rev_ids = []
+    if term.endswith("%"):
+        term = term.replace("%", "")
             
-    elif left == "rterm":
-        row = rt_cur.set(term)
-        
+        row = pt_cur.first()
         while row is not None:
-            #res = rw_db.get(row[1])
-            #results.append(res)
-            results.append(row[1])
+            if row[0].decode("utf-8").startswith(term):
+                key = row[0]
+                break
+            row = pt_cur.next()
+            
+        row = pt_cur.set(key)
+        while row is not None:
+            rev_ids.append(row[1])
+            row = pt_cur.next_dup()
+    else:
+            
+        row = pt_cur.set(term.encode("utf-8"))
+        while row is not None:
+            rev_ids.append(row[1])
+            row = pt_cur.next_dup()
+    
+    results.append(set(rev_ids))
+    
+def rterm_search(term, results):
+    rev_ids = []
+    if term.endswith("%"):
+        term = term.replace("%", "")
+            
+        row = rt_cur.first()
+        while row is not None:
+            if row[0].decode("utf-8").startswith(term):
+                key = row[0]
+                break
+            row = rt_cur.next()
+            
+        row = rt_cur.set(key)
+        while row is not None:
+            rev_ids.append(row[1])
             row = rt_cur.next_dup()
     else:
-        print("Invalid input!")
+        row = rt_cur.set(term.encode("utf-8"))
+        while row is not None:
+                rev_ids.append(row[1])
+                row = rt_cur.next_dup()
+   
+    results.append(set(rev_ids))
+
+def term_search(query, results):
+    left = query.split(":")[0]
+    term = query.split(":")[1]
     
+    
+    if left == "pterm":
+        pterm_search(term, results)
+            
+    elif left == "rterm":
+        rterm_search(term, results)
+        
+    #may need to handle errors? 
+   
     
 def compute_results(queries, results):
     #note print statements are just placeholders. Need functions to go here
@@ -114,9 +152,11 @@ def compute_results(queries, results):
         if "<" in query:
             print("<")
             #some function
+            
         elif ">" in query:
             print(">")
             #lessThan function
+            
         elif ":" in query:
             print(":")
             term_search(query, results)
@@ -150,7 +190,7 @@ def main():
     
     
     while True:
-        results = [] #all review_ids are added here would be added in here
+        results = [] #all review_ids are added here
         user_input = input("Enter your search:\n> ")
         
         # queries is a list containing ALL queries
@@ -159,8 +199,8 @@ def main():
         queries = process_text(user_input.lower())
         # compute each query and add the searches to "results"
         compute_results(queries, results)
-        #for i in results:
-         #   print(i)
+        for i in results:
+            print(i)
             
         intersect(results) #get intersection of the tuple sets in this function
         print_table(results)
