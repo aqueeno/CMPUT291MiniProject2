@@ -121,6 +121,12 @@ def rterm_search(term, results):
    
     results.append(set(rev_ids))
 
+def single_term_search(query, results):
+    if query.endswith("%"):
+        query = query.replace("%","")
+    else: 
+        pass
+
 def term_search(query, results):
     left = query.split(":")[0]
     term = query.split(":")[1]
@@ -155,8 +161,8 @@ def compute_results(queries, results):
             print("change output boys")
             
         else:
-            print("handle single word")
-
+            #print("handle single word")
+            single_term_search(query, results)
 
 
 
