@@ -1,5 +1,11 @@
 from bsddb3 import db
 
+
+import shlex
+# really helpful in parsing complicated text
+# https://docs.python.org/3/library/shlex.html#parsing-rules
+# may need to cite this
+
 rw_db = None
 rw_cur = None
 pt_db = None
@@ -76,15 +82,12 @@ def process_text(string):
             
             left = left.split()
             left.pop()
-            
             right = right.split()
             right.pop(0)
-            
             stri = " "
             string = stri.join(left+right)
-            
             all_queries.append(left_operand + operator+right_operand)
-            
+    # add the inidivual standalone words to the query list
     string = string.split()
     for query in string:
         all_queries.append(query)
@@ -165,6 +168,7 @@ def single_term_search(query, results):
 
 
 def compute_results(queries, results):
+    global OUTPUT
     #note print statements are just placeholders. Need functions to go here
     # in each function, handle partial matching (% symbol)
     for query in queries:
@@ -180,9 +184,10 @@ def compute_results(queries, results):
             term_search(query, results)
 
         elif "output=" in query:
-            print("change output boys")
+            OUTPUT = query.split("=")[1]
+            #need to handle errors!!!
 
-        else:
+        else: #single words 
             single_term_search(query, results)
 
 
@@ -190,9 +195,11 @@ def compute_results(queries, results):
 
 def intersect(id_set):
     
+    intersect_ids = None
+    
     for i in range(len(id_set)):
         intersect_ids = id_set[0].intersection(id_set[i])
-        
+    
     return intersect_ids
 
     #extra space deletion
@@ -221,11 +228,37 @@ def intersect(id_set):
     '''
 
 def print_table(results):
-    pass
-
-
-
-
+    
+    if not results:
+        print("\nNo results matching the query...\n")
+        return
+    results = list(results)
+    
+    if OUTPUT == "brief":
+        fields = ["Product Title", "Review Score"]
+        settings = [1, 6]
+    elif OUTPUT == "full":
+        fields = ["Product ID" ,"Product Title", "Price", 
+                  "User ID","User Name", "Helpfulness","Review Score","Timestamp", "Summary", "Full Review"]
+        settings = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
+    print("")
+    for ID in results:
+        string = rw_db.get(ID).decode("utf-8")
+        
+        # this code seperates based on commas but keeps strings in 
+        # quotes together.
+        # Ex. if string = '1, 2, "3, 4"', it would be split as ['1', '2', '3, 4']
+        row = shlex.shlex(string, punctuation_chars=True)
+        row.whitespace_split = False
+        row = list(row)
+        while "," in row:
+            row.remove(",")
+        
+        print("Review ID:", ID.decode("utf-8"))
+        
+        for idx in range(len(fields)):
+            print(fields[idx]+":", row[settings[idx]])
+        print("")
 
 def main():
     init_databases()
@@ -247,7 +280,7 @@ def main():
         #    print(i)
 
         ids = intersect(results) #get intersection of the tuple sets in this function
-        print(ids)
+        #print(ids)
         print_table(ids)
 
         if continue_query():
@@ -255,11 +288,25 @@ def main():
 
     print("\nGoodbye\n")
     close_connection()
+def test():
+    string = '1,2,"hello,world",7/7,3'
+    
+    s = shlex.shlex(string, punctuation_chars = True)#posix=True)
+    s.whitespace_split = False
+    s = list(s)
+    while "," in s:
+        s.remove(",")
+    
+    print(s)
+
+    
 
 #def main():
  #   intersect("guitar date>                  2007/05/16  price    >    200 price   < 300")
   #  return
 if __name__ == "__main__":
+    
     main()
+    #test()
  #   main()
     #print(process_text(" score   :  4   guitar%   price   >   50  "))# was testing if I can seperate all the queries
