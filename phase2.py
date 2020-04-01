@@ -1,4 +1,4 @@
-from bsddb3 import db 
+from bsddb3 import db
 
 rw_db = None
 rw_cur = None
@@ -7,49 +7,49 @@ pt_cur = None
 rt_db = None
 rt_cur = None
 sc_db = None
-sc_cur = None 
+sc_cur = None
 
 OUTPUT = "brief"
 
 def init_databases():
     global rw_db, pt_db, rt_db, sc_db
-    
+
     rw_db = db.DB()
     pt_db = db.DB()
     rt_db = db.DB()
     sc_db = db.DB()
-    
+
     pt_db.set_flags(db.DB_DUP)
     rt_db.set_flags(db.DB_DUP)
     sc_db.set_flags(db.DB_DUP)
-    
+
     rw_db.open("rw.idx")
     pt_db.open("pt.idx")
     rt_db.open("rt.idx")
     sc_db.open("sc.idx")
-    
-    
+
+
 def init_cursors():
     global rw_cur, pt_cur, rt_cur, sc_cur
     rw_cur = rw_db.cursor()
     pt_cur = pt_db.cursor()
     rt_cur = rt_db.cursor()
     sc_cur = sc_db.cursor()
-    
+
 def close_connection():
     global rw_db, pt_db, rt_db, sc_db
     global rw_cur, pt_cur, rt_cur, sc_cur
-    
-    rw_cur.close() 
-    pt_cur.close() 
-    rt_cur.close() 
-    sc_cur.close() 
-    
+
+    rw_cur.close()
+    pt_cur.close()
+    rt_cur.close()
+    sc_cur.close()
+
     rw_db.close()
     pt_db.close()
     rt_db.close()
     sc_db.close()
-    
+
 def continue_query():
     while True:
         cont = input("Would you like to search again? (y/n)\n> ")
@@ -59,13 +59,16 @@ def continue_query():
             return False
         else:
             print("Invalid input.\n")
-    
+            continue_query() #persistant
 
 def process_text(string):
+    #DEBUG: "guitar date          >                  2007/05/16  price    >    200 price   < 300"
+    #example does not work correctly and is printed as ['price<300', 'date>2007/05/16', 'guitar>200', 'price']
+    #which is the wrong return -Batu
     all_queries = []
     operators = ["=", ":", "<", ">"]
     for operator in operators:
-        
+
         while operator in string:
             left = string.split(operator)[0]
             right = string.split(operator)[1]
@@ -75,50 +78,50 @@ def process_text(string):
             string = string.replace(operator, "", 1)
             string = string.replace(left_operand, "", 1)
             string = string.replace(right_operand, "", 1)
-    
+
     string = string.split()
     for word in string:
         all_queries.append(word)
-        
+
     return all_queries
 
 def pterm_search(term, results):
     rev_ids = []
     if term.endswith("%"):
         term = term.replace("%", "")
-            
+
         row = pt_cur.first()
         while row is not None:
             if row[0].decode("utf-8").startswith(term):
                 rev_ids.append(row[1])
-                
+
             row = pt_cur.next()
     else:
-            
+
         row = pt_cur.set(term.encode("utf-8"))
         while row is not None:
             rev_ids.append(row[1])
             row = pt_cur.next_dup()
-    
+
     results.append(set(rev_ids))
-    
+
 def rterm_search(term, results):
     rev_ids = []
     if term.endswith("%"):
         term = term.replace("%", "")
-            
+
         row = rt_cur.first()
         while row is not None:
             if row[0].decode("utf-8").startswith(term):
                 rev_ids.append(row[1])
             row = rt_cur.next()
-    
+
     else:
         row = rt_cur.set(term.encode("utf-8"))
         while row is not None:
                 rev_ids.append(row[1])
                 row = rt_cur.next_dup()
-   
+
     results.append(set(rev_ids))
 
 def single_term_search(query, results):
@@ -143,17 +146,17 @@ def single_term_search(query, results):
 def term_search(query, results):
     left = query.split(":")[0]
     term = query.split(":")[1]
-    
-    
+
+
     if left == "pterm":
         pterm_search(term, results)
-            
+
     elif left == "rterm":
         rterm_search(term, results)
-        
-    #may need to handle errors? 
-   
-    
+
+    #may need to handle errors?
+
+
 def compute_results(queries, results):
     #note print statements are just placeholders. Need functions to go here
     # in each function, handle partial matching (% symbol)
@@ -161,18 +164,18 @@ def compute_results(queries, results):
         if "<" in query:
             print("<")
             #some function
-            
+
         elif ">" in query:
             print(">")
             #lessThan function
-            
+
         elif ":" in query:
             print(":")
             term_search(query, results)
-            
+
         elif "output=" in query:
             print("change output boys")
-            
+
         else:
             #print("handle single word")
             single_term_search(query, results)
@@ -183,25 +186,47 @@ def compute_results(queries, results):
 
 
 
-def intersect(results):
-    pass
+def intersect(string):
+    #extra space deletion
+    string = str(string)
+
+    string = " ".join(string.split())
+    string = string.split()
+    operations = []
+    operators = ["=", ":", "<", ">"]
+    used_operators = []
+    for operator in operators:
+        for i in range(len(string)-1):
+            if string[i] == operator and i>0:
+                operations.append(string[i-1] + string[i] + string[i+1])
+                used_operators.append(i-1)
+                used_operators.append(i)
+                used_operators.append(i+1)
+            else:
+                #in this case it will be illegal element
+                continue
+    for i in range(len(string)):
+        if i not in used_operators:
+            operations.append(string[i])
+    print(operations)
+    return
 
 def print_table(results):
     pass
-    
-    
-    
-    
-    
+
+
+
+
+"""
 def main():
     init_databases()
     init_cursors()
-    
-    
+
+
     while True:
         results = [] #all review_ids are added here
         user_input = input("Enter your search:\n> ")
-        
+
         # queries is a list containing ALL queries
         # if the user entered "guitar price > 50"
         # this list would contain ["guitar", "price>50"]
@@ -210,20 +235,20 @@ def main():
         compute_results(queries, results)
         for i in results:
             print(i)
-        
+
         intersect(results) #get intersection of the tuple sets in this function
         print_table(results)
-        
+
         if continue_query():
             break
-        
+
     print("\nGoodbye\n")
     close_connection()
-    
+"""
+def main():
+    intersect("guitar date          >                  2007/05/16  price    >    200 price   < 300")
+    return
 if __name__ == "__main__":
-    
+
     main()
     #print(process_text(" score   :  4   guitar%   price   >   50  "))# was testing if I can seperate all the queries
-    
-    
-    
