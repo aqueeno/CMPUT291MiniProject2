@@ -150,19 +150,31 @@ def term_search(query, results):
 def single_term_search(query, results):
     #contains term in at least one of product title, review summary, or review text in reviews.txt
     rev_ids = []
-    if query.endswith("%"):
+    if query.endswith("%"): #partial matching case 
         query = query.replace("%","")
-    else:
-        query = " "+query+" "
-
-    row = rw_cur.first()
-    while row is not None:
-        product_title = row[2].decode("utf-8")
-        review_summary = row[9].decode("utf-8")
-        review_text = row[10].decode("utf-8")
-        if query in product_title or query in review_summary or query in review_text:
-            rev_ids.append(row[0])
-        row = rw_cur.next()
+        #first check product titles 
+        pt_row = pt_cur.first()
+        while pt_row is not None:
+            if pt_row[0].decode("utf-8").startswith(query):
+                rev_ids.append(pt_row[1])
+            pt_row = pt_cur.next()
+        #then check review summaries/texts
+        rt_row = rt_cur.first()
+        while rt_row is not None:
+            if rt_row[0].decode("utf-8").startswith(query):
+                rev_ids.append(rt_row[1])
+            rt_row = rt_cur.next()
+    else: #case for single, exact term
+        #first check product titles
+        pt_row = pt_cur.set(query.encode("utf-8"))
+        while pt_row is not None:
+            rev_ids.append(pt_row[1])
+            pt_row = pt_cur.next_dup()
+        #then check review summaries/texts
+        rt_row = rt_cur.set(query.encode("utf-8"))
+        while rt_row is not None:
+            rev_ids.append(rt_row[1])
+            rt_row = rt_cur.next_dup()
 
     results.append(set(rev_ids))
 
