@@ -10,3 +10,4 @@ We did not collaborate with anyone else.
 Sources:
 > https://stackoverflow.com/questions/33621639/convert-date-to-timestamp-in-python/33621755 
 > https://docs.python.org/3/library/shlex.html#parsing-rules
+> http://pybsddb.sourceforge.net/bsddb3.html
