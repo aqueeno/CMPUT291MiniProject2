@@ -1,6 +1,6 @@
 from bsddb3 import db
 
-
+from datetime import datetime
 import shlex
 # really helpful in parsing complicated text
 # https://docs.python.org/3/library/shlex.html#parsing-rules
@@ -178,6 +178,52 @@ def single_term_search(query, results):
 
     results.append(set(rev_ids))
 
+def range_search_bigger(query, results):
+    query_bigger_operation = query.split(">")
+    rev_ids = []
+    row = rw_cur.first()
+    while row is not None:
+        if query_bigger_operation[0] == "price":
+            product_price = row[3].decode("utf-8")
+            if query_bigger_operation[1] > int(product_price):
+                rev_ids.append(row[0])
+            row = rt_cur.next()
+        elif query_bigger_operation[0] == "score":
+            product_score = row[7].decode("utf-8")
+            if query_bigger_operation[1] > int(product_score):
+                rev_ids.append(row[0])
+            row = rt_cur.next()
+        elif query_bigger_operation[0] == "date":
+            product_date = row[8].decode("utf-8")
+            query_timestamp = int(datetime.strptime(query_bigger_operation[1], '%Y/%m/%d').timetuple())
+            if  query_timestamp > int(product_date):
+                rev_ids.append(row[0])
+            row = rt_cur.next()
+    results.append(set(rev_ids))
+
+def range_search_smaller(query, results):
+    query_bigger_operation = query.split("<")
+    rev_ids = []
+    row = rw_cur.first()
+    while row is not None:
+        if query_bigger_operation[0] == "price":
+            product_price = row[3].decode("utf-8")
+            if query_bigger_operation[1] < int(product_price):
+                rev_ids.append(row[0])
+            row = rt_cur.next()
+        elif query_bigger_operation[0] == "score":
+            product_score = row[7].decode("utf-8")
+            if query_bigger_operation[1] < int(product_score):
+                rev_ids.append(row[0])
+            row = rt_cur.next()
+        elif query_bigger_operation[0] == "date":
+            product_date = row[8].decode("utf-8")
+            query_timestamp = int(datetime.strptime(query_bigger_operation[1], '%Y/%m/%d').timetuple())
+            if  query_timestamp < int(product_date):
+                rev_ids.append(row[0])
+            row = rt_cur.next()
+    results.append(set(rev_ids))
+
 
 def compute_results(queries, results):
     global OUTPUT
@@ -185,11 +231,11 @@ def compute_results(queries, results):
     # in each function, handle partial matching (% symbol)
     for query in queries:
         if "<" in query:
-            print("<")
+            range_search_smaller(query, results)
             #lessThan function
 
         elif ">" in query:
-            print(">")
+            range_search_bigger(query, results)
             #greaterThan function
 
         elif ":" in query:
