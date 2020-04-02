@@ -1,8 +1,15 @@
 
 
-.PHONY: build_index parse_files sort_files format_files
-sort_files: scores.txt pterms.txt rterms.txt
-	sort -u $^
+.PHONY: build_index parse_files  format_files
+
+
+scores: scores.txt
+	sort -u -o $< $<
+pterms: pterms.txt
+	sort -u -o $< $<
+rterms: rterms.txt
+	sort -u -o $< $<
+	
 
 parse_files: phase1.py 
 	python3 phase1.py
@@ -20,7 +27,7 @@ rt.idx: rt.txt
 	db_load -c duplicates=1 -T -f $< -t btree $@
 
 
-format_files:  sort_files parse_files 
+format_files: scores pterms rterms parse_files
 
 build_index: rw.idx pt.idx rt.idx sc.idx 
 
