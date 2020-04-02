@@ -3,13 +3,7 @@ from bsddb3 import db
 from datetime import datetime
 import time
 
-#https://stackoverflow.com/questions/33621639/convert-date-to-timestamp-in-python/33621755 
-#cite this for getting timestamp
-
 import shlex
-# really helpful in parsing complicated text
-# https://docs.python.org/3/library/shlex.html#parsing-rules
-# may need to cite this
 
 rw_db = None
 rw_cur = None
@@ -70,16 +64,16 @@ def continue_query():
             return False
         else:
             print("Invalid input.\n")
-            
+
 def process_text(string):
     """
-    Takes the users string as input. Will process the text to 
-    extract all the queries. 
+    Takes the users string as input. Will process the text to
+    extract all the queries.
     Exmaple: string = "score  < 3 pterm : amazon"
     will be proccessed as ["pterm:amazon", "score<3"]
-    
+
     """
-    
+
     all_queries = []
     operators = ["=", ":", "<", ">"]
     for operator in operators:
@@ -99,12 +93,12 @@ def process_text(string):
             stri = " "
             string = stri.join(left+right)
             all_queries.append(left_operand + operator+right_operand)
-            
+
     # add the inidivual standalone words to the query list
     string = string.split()
     for query in string:
         all_queries.append(query)
-        
+
     return all_queries
 
 def pterm_search(term, results):
@@ -169,19 +163,24 @@ def term_search(query, results):
 def single_term_search(query, results):
     #contains term in at least one of product title, review summary, or review text in reviews.txt
     rev_ids = []
-    if query.endswith("%"): #partial matching case 
+    if query.endswith("%"): #partial matching case
         query = query.replace("%","")
-        #first check product titles 
-        pt_row = pt_cur.first()
+        #first check product titles
+        pt_row = pt_cur.set_range(query.encode("utf-8"))
         while pt_row is not None:
             if pt_row[0].decode("utf-8").startswith(query):
                 rev_ids.append(pt_row[1])
+            else:
+                break
             pt_row = pt_cur.next()
+
         #then check review summaries/texts
-        rt_row = rt_cur.first()
+        rt_row = rt_cur.set_range(query.encode("utf-8"))
         while rt_row is not None:
             if rt_row[0].decode("utf-8").startswith(query):
                 rev_ids.append(rt_row[1])
+            else:
+                break
             rt_row = rt_cur.next()
     else: #case for single, exact term
         #first check product titles
@@ -196,11 +195,11 @@ def single_term_search(query, results):
             rt_row = rt_cur.next_dup()
 
     results.append(set(rev_ids))
-    
+
 def parse_text(raw_text):
     '''
-    Will take a string that is difficult to split, raw_text, 
-    and will parse is it using the shlex module. Returns a list 
+    Will take a string that is difficult to split, raw_text,
+    and will parse is it using the shlex module. Returns a list
     of all the fields. (Intended for the reviews databse)
     '''
     parsed = shlex.shlex(raw_text, punctuation_chars=True)
@@ -214,27 +213,34 @@ def range_search_bigger(query, results):
     query_bigger_operation = query.split(">")
     field = query_bigger_operation[0]
     rev_ids = []
-    
-    if field == "price": #have to iterate through every review
-        user_price = float(query_bigger_operation[1])
-        row = sc_cur.first()
+
+    if field == "price": # use the score database to go through files fast
+        try:
+            user_price = float(query_bigger_operation[1])
+        except:
+            invalid_input()
+        row = sc_cur.set_range("0".encode("utf-8"))
         while row is not None:
-            review_id = row[1] 
+            review_id = row[1]
             review_data = rw_db.get(review_id).decode("utf-8")
-            review_data = parse_text(review_data)
+
+            review_data = review_data.split(",")
+
             try:
                 product_price = float(review_data[2])
             except ValueError:
                 row = sc_cur.next()
                 continue
-            
             if product_price > user_price:
                 rev_ids.append(review_id)
-            
+
             row = sc_cur.next()
-            
+
     elif field == "score": #iterate through score db for better efficiency
-        user_score = float(query_bigger_operation[1])
+        try:
+            user_score = float(query_bigger_operation[1])
+        except:
+            invalid_input()
         user_score+=0.1
         user_score = str(user_score)
         row = sc_cur.set_range(user_score.encode("utf-8"))
@@ -242,69 +248,78 @@ def range_search_bigger(query, results):
             review_id = row[1]
             rev_ids.append(review_id)
             row = sc_cur.next()
-    
+
     elif field == "date":
-        
+        #first convert users date to a timestamp. throw an error if invalid
         user_date = query_bigger_operation[1]
         try:
             datetime_obj = datetime.strptime(user_date, '%Y/%m/%d')
             user_timestamp = int(time.mktime(datetime_obj.timetuple()))
         except ValueError:
             invalid_input()
-        
-        row = sc_cur.first()
+
+        row = sc_cur.set_range("0".encode("utf-8"))
         while row is not None:
-            review_id = row[1] 
+            review_id = row[1]
             review_data = rw_db.get(review_id).decode("utf-8")
-            review_data = parse_text(review_data)
+            review_data = review_data.split(",")
+
             try:
                 product_date = int(review_data[7])
             except ValueError:
                 row = sc_cur.next()
                 continue
-            
+
             if product_date > user_timestamp:
                 rev_ids.append(review_id)
-            
+
             row = sc_cur.next()
+
     else:
         invalid_input()
-        
     return results.append(set(rev_ids))
-    
-    
+
+
+
 def range_search_smaller(query, results):
     query_bigger_operation = query.split("<")
     field = query_bigger_operation[0]
     rev_ids = []
-    
-    if field == "price": #have to iterate through every review
-        user_price = float(query_bigger_operation[1])
-        row = sc_cur.first()
+
+    if field == "price":
+        try:
+            user_price = float(query_bigger_operation[1])
+        except:
+            invalid_input()
+        row = sc_cur.set_range("0".encode("utf-8"))
         while row is not None:
-            review_id = row[1] 
+            review_id = row[1]
             review_data = rw_db.get(review_id).decode("utf-8")
-            review_data = parse_text(review_data)
+            review_data = review_data.split(",")
+
             try:
                 product_price = float(review_data[2])
             except ValueError:
                 row = sc_cur.next()
                 continue
-            
             if product_price < user_price:
                 rev_ids.append(review_id)
+
             row = sc_cur.next()
-            
+
     elif field == "score": #iterate through score db for better efficiency
-        user_score = query_bigger_operation[1]
+        try:
+            user_score = float(query_bigger_operation[1])
+        except:
+            invalid_input()
         row = sc_cur.set_range("0".encode("utf-8"))
         while row is not None:
             review_id = row[1]
             current_score = row[0].decode("utf-8")
-            if float(current_score) < float(user_score):
+            if float(current_score) < user_score:
                 rev_ids.append(review_id)
             row = sc_cur.next()
-     
+
     elif field == "date":
         user_date = query_bigger_operation[1]
         try:
@@ -312,27 +327,28 @@ def range_search_smaller(query, results):
             user_timestamp = int(time.mktime(datetime_obj.timetuple()))
         except ValueError:
             invalid_input()
-        
-        row = sc_cur.first()
+
+        row = sc_cur.set_range("0".encode("utf-8"))
         while row is not None:
-            review_id = row[1] 
+            review_id = row[1]
             review_data = rw_db.get(review_id).decode("utf-8")
-            review_data = parse_text(review_data)
+            review_data = review_data.split(",")
+
             try:
                 product_date = int(review_data[7])
             except ValueError:
                 row = sc_cur.next()
                 continue
-            
+
             if product_date < user_timestamp:
                 rev_ids.append(review_id)
+
             row = sc_cur.next()
-            
+
     else:
         invalid_input()
-        
     return results.append(set(rev_ids))
-    
+
 
 def compute_results(queries, results):
     '''
@@ -340,7 +356,7 @@ def compute_results(queries, results):
     be executed. The resulting review_ids will be added to the "results" list
     '''
     global OUTPUT
-    
+
     for query in queries:
         if "<" in query:
             range_search_smaller(query, results)
@@ -353,23 +369,23 @@ def compute_results(queries, results):
 
         elif "=" in query:
             OUTPUT = query.split("=")[1]
-            
 
-        elif "%"in query or query.isalnum(): #single words 
+
+        elif "%"in query or query.isalnum(): #single words
             single_term_search(query, results)
-            
+
         else:
             invalid_input()
 
 
 def intersect(id_set):
     '''
-    id_set: a list contanings sets of tuples. 
+    id_set: a list contanings sets of tuples.
     The intersection of each tuple in the list will be taken
     in order to get the shared review ids among all queries
     '''
     intersect_ids = None
-    
+
     for i in range(len(id_set)):
         intersect_ids = id_set[0].intersection(id_set[i])
     return intersect_ids
@@ -377,32 +393,34 @@ def intersect(id_set):
 
 def print_table(results):
     '''
-    Given a set of review ids, this function will format the text and 
-    print them out. Note: the printing style is dependent on 
-    which mode the user specifies (brief or full). Brief is the default mode. 
+    Given a set of review ids, this function will format the text and
+    print them out. Note: the printing style is dependent on
+    which mode the user specifies (brief or full). Brief is the default mode.
     '''
     if not results:
         print("\nNo results matching the query...\n")
         return
     results = list(results)
-    
+
     if OUTPUT == "brief":
         fields = ["Product Title", "Review Score"]
         settings = [1, 6]
     elif OUTPUT == "full":
-        fields = ["Product ID" ,"Product Title", "Price", 
+        fields = ["Product ID" ,"Product Title", "Price",
                   "User ID","User Name", "Helpfulness","Review Score","Timestamp", "Summary", "Full Review"]
         settings = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
+    else:
+        invalid_input()
     print("")
     for ID in results:
         string = rw_db.get(ID).decode("utf-8")
         row = parse_text(string)
-        
+
         print("Review ID:", ID.decode("utf-8"))
         for idx in range(len(fields)):
             print(fields[idx]+":", row[settings[idx]])
         print("")
-        
+
 def invalid_input():
     # upon invalid input, print an error message and quit the program
     print("\nInvalid input! Quitting program...\n")
@@ -418,10 +436,10 @@ def main():
         user_input = input("Enter your search:\n> ")
 
         queries = process_text(user_input.lower())
-        
+
         # compute each query and add the searches to "results"
         compute_results(queries, results)
-        
+
         ids = intersect(results) #get intersection of the tuple sets in this function
         print_table(ids)
 
@@ -429,10 +447,9 @@ def main():
             break
 
     print("\nGoodbye\n")
-    
+
     close_connection()
     return 0
 
 if __name__ == "__main__":
     main()
-    
