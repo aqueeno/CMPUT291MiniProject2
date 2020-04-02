@@ -22,7 +22,7 @@ def parse_file(orig_files, new_file):
 
 def main():
     files = ["pterms.txt", "reviews.txt", "rterms.txt", "scores.txt"]
-    new_files = ["parsed_pterms.txt", "parsed_reviews.txt", "parsed_rterms.txt", "parsed_scores.txt"]
+    new_files = ["pt.txt", "rw.txt", "rt.txt", "sc.txt"]
     
     for i in range(len(files)):
         parse_file(files[i], new_files[i])
