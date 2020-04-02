@@ -1,6 +1,11 @@
 from bsddb3 import db
 
 from datetime import datetime
+import time
+
+#https://stackoverflow.com/questions/33621639/convert-date-to-timestamp-in-python/33621755 
+#cite this for getting timestamp
+
 import shlex
 # really helpful in parsing complicated text
 # https://docs.python.org/3/library/shlex.html#parsing-rules
@@ -65,8 +70,7 @@ def continue_query():
             return False
         else:
             print("Invalid input.\n")
-            # continue_query() #persistant < -- i don't think it needs to be recurisve. the while loop accomplises persistance
-
+            
 def process_text(string):
     
     all_queries = []
@@ -76,9 +80,11 @@ def process_text(string):
         while operator in string:
             left = string.split(operator, 1)[0]
             right = string.split(operator, 1)[1]
-            
-            left_operand = left.split()[-1]
-            right_operand = right.split()[0]
+            try:
+                left_operand = left.split()[-1]
+                right_operand = right.split()[0]
+            except IndexError:
+                invalid_input()
             
             left = left.split()
             left.pop()
@@ -143,8 +149,9 @@ def term_search(query, results):
 
     elif left == "rterm":
         rterm_search(term, results)
+    else:
+        invalid_input()
 
-    #may need to handle errors?
 
 
 def single_term_search(query, results):
@@ -177,78 +184,159 @@ def single_term_search(query, results):
             rt_row = rt_cur.next_dup()
 
     results.append(set(rev_ids))
+    
+def parse_text(raw_text):
+    
+    parsed = shlex.shlex(raw_text, punctuation_chars=True)
+    parsed.whitespace_split = False
+    parsed = list(parsed)
+    while "," in parsed:
+        parsed.remove(",")
+    return parsed
 
 def range_search_bigger(query, results):
     query_bigger_operation = query.split(">")
+    field = query_bigger_operation[0]
     rev_ids = []
-    row = rw_cur.first()
-    while row is not None:
-        if query_bigger_operation[0] == "price":
-            product_price = row[3].decode("utf-8")
-            if query_bigger_operation[1] > int(product_price):
-                rev_ids.append(row[0])
-            row = rt_cur.next()
-        elif query_bigger_operation[0] == "score":
-            product_score = row[7].decode("utf-8")
-            if query_bigger_operation[1] > int(product_score):
-                rev_ids.append(row[0])
-            row = rt_cur.next()
-        elif query_bigger_operation[0] == "date":
-            product_date = row[8].decode("utf-8")
-            query_timestamp = int(datetime.strptime(query_bigger_operation[1], '%Y/%m/%d').timetuple())
-            if  query_timestamp > int(product_date):
-                rev_ids.append(row[0])
-            row = rt_cur.next()
-    results.append(set(rev_ids))
-
+    
+    if field == "price": #have to iterate through every review
+        user_price = float(query_bigger_operation[1])
+        row = sc_cur.first()
+        while row is not None:
+            review_id = row[1] 
+            review_data = rw_db.get(review_id).decode("utf-8")
+            review_data = parse_text(review_data)
+            try:
+                product_price = float(review_data[2])
+            except ValueError:
+                row = sc_cur.next()
+                continue
+            
+            if product_price > user_price:
+                rev_ids.append(review_id)
+            
+            row = sc_cur.next()
+            
+    elif field == "score": #iterate through score db for better efficiency
+        user_score = float(query_bigger_operation[1])
+        user_score+=0.1
+        user_score = str(user_score)
+        row = sc_cur.set_range(user_score.encode("utf-8"))
+        while row is not None:
+            review_id = row[1]
+            rev_ids.append(review_id)
+            row = sc_cur.next()
+    
+    elif field == "date":
+        
+        user_date = query_bigger_operation[1]
+        try:
+            datetime_obj = datetime.strptime(user_date, '%Y/%m/%d')
+            user_timestamp = int(time.mktime(datetime_obj.timetuple()))
+        except ValueError:
+            invalid_input()
+        
+        row = sc_cur.first()
+        while row is not None:
+            review_id = row[1] 
+            review_data = rw_db.get(review_id).decode("utf-8")
+            review_data = parse_text(review_data)
+            try:
+                product_date = int(review_data[7])
+            except ValueError:
+                row = sc_cur.next()
+                continue
+            
+            if product_date > user_timestamp:
+                rev_ids.append(review_id)
+            
+            row = sc_cur.next()
+    else:
+        invalid_input()
+        
+    return results.append(set(rev_ids))
+    
+    
 def range_search_smaller(query, results):
     query_bigger_operation = query.split("<")
+    field = query_bigger_operation[0]
     rev_ids = []
-    row = rw_cur.first()
-    while row is not None:
-        if query_bigger_operation[0] == "price":
-            product_price = row[3].decode("utf-8")
-            if query_bigger_operation[1] < int(product_price):
-                rev_ids.append(row[0])
-            row = rt_cur.next()
-        elif query_bigger_operation[0] == "score":
-            product_score = row[7].decode("utf-8")
-            if query_bigger_operation[1] < int(product_score):
-                rev_ids.append(row[0])
-            row = rt_cur.next()
-        elif query_bigger_operation[0] == "date":
-            product_date = row[8].decode("utf-8")
-            query_timestamp = int(datetime.strptime(query_bigger_operation[1], '%Y/%m/%d').timetuple())
-            if  query_timestamp < int(product_date):
-                rev_ids.append(row[0])
-            row = rt_cur.next()
-    results.append(set(rev_ids))
-
+    
+    if field == "price": #have to iterate through every review
+        user_price = float(query_bigger_operation[1])
+        row = sc_cur.first()
+        while row is not None:
+            review_id = row[1] 
+            review_data = rw_db.get(review_id).decode("utf-8")
+            review_data = parse_text(review_data)
+            try:
+                product_price = float(review_data[2])
+            except ValueError:
+                row = sc_cur.next()
+                continue
+            
+            if product_price < user_price:
+                rev_ids.append(review_id)
+            row = sc_cur.next()
+            
+    elif field == "score": #iterate through score db for better efficiency
+        user_score = query_bigger_operation[1]
+        row = sc_cur.set_range("0".encode("utf-8"))
+        while row is not None:
+            review_id = row[1]
+            current_score = row[0].decode("utf-8")
+            if float(current_score) < float(user_score):
+                rev_ids.append(review_id)
+            row = sc_cur.next()
+     
+    elif field == "date":
+        user_date = query_bigger_operation[1]
+        try:
+            datetime_obj = datetime.strptime(user_date, '%Y/%m/%d')
+            user_timestamp = int(time.mktime(datetime_obj.timetuple()))
+        except ValueError:
+            invalid_input()
+        
+        row = sc_cur.first()
+        while row is not None:
+            review_id = row[1] 
+            review_data = rw_db.get(review_id).decode("utf-8")
+            review_data = parse_text(review_data)
+            try:
+                product_date = int(review_data[7])
+            except ValueError:
+                row = sc_cur.next()
+                continue
+            
+            if product_date < user_timestamp:
+                rev_ids.append(review_id)
+            row = sc_cur.next()
+            
+    else:
+        invalid_input()
+        
+    return results.append(set(rev_ids))
+    
 
 def compute_results(queries, results):
     global OUTPUT
-    #note print statements are just placeholders. Need functions to go here
-    # in each function, handle partial matching (% symbol)
+    
     for query in queries:
         if "<" in query:
             range_search_smaller(query, results)
-            #lessThan function
 
         elif ">" in query:
             range_search_bigger(query, results)
-            #greaterThan function
 
         elif ":" in query:
             term_search(query, results)
 
-        elif "output=" in query:
+        elif "=" in query:
             OUTPUT = query.split("=")[1]
             #need to handle errors!!!
 
         else: #single words 
             single_term_search(query, results)
-
-
 
 
 def intersect(id_set):
@@ -257,33 +345,8 @@ def intersect(id_set):
     
     for i in range(len(id_set)):
         intersect_ids = id_set[0].intersection(id_set[i])
-    
     return intersect_ids
 
-    #extra space deletion
-    '''
-    string = str(string)
-
-    string = " ".join(string.split())
-    string = string.split()
-    operations = []
-    operators = ["=", ":", "<", ">"]
-    used_operators = []
-    for operator in operators:
-        for i in range(len(string)-1):
-            if string[i] == operator and i>0:
-                operations.append(string[i-1] + string[i] + string[i+1])
-                used_operators.append(i-1)
-                used_operators.append(i)
-                used_operators.append(i+1)
-            else:
-                #in this case it will be illegal element
-                continue
-    for i in range(len(string)):
-        if i not in used_operators:
-            operations.append(string[i])
-    print(operations)
-    '''
 
 def print_table(results):
     
@@ -317,11 +380,15 @@ def print_table(results):
         for idx in range(len(fields)):
             print(fields[idx]+":", row[settings[idx]])
         print("")
+        
+def invalid_input():
+    print("\nInvalid input! Quitting program...\n")
+    close_connection()
+    exit(1)
 
 def main():
     init_databases()
     init_cursors()
-
 
     while True:
         results = [] #all review_ids are added here
@@ -331,40 +398,21 @@ def main():
         # if the user entered "guitar price > 50"
         # this list would contain ["guitar", "price>50"]
         queries = process_text(user_input.lower())
+        
         # compute each query and add the searches to "results"
         compute_results(queries, results)
         
-        #for i in results: #for testing purposes. Delete later
-        #    print(i)
-
         ids = intersect(results) #get intersection of the tuple sets in this function
-        #print(ids)
         print_table(ids)
 
         if continue_query():
             break
 
     print("\nGoodbye\n")
+    
     close_connection()
-def test():
-    string = '1,2,"hello,world",7/7,3'
-    
-    s = shlex.shlex(string, punctuation_chars = True)#posix=True)
-    s.whitespace_split = False
-    s = list(s)
-    while "," in s:
-        s.remove(",")
-    
-    print(s)
+    return 0
 
-    
-
-#def main():
- #   intersect("guitar date>                  2007/05/16  price    >    200 price   < 300")
-  #  return
 if __name__ == "__main__":
-    
     main()
-    #test()
- #   main()
-    #print(process_text(" score   :  4   guitar%   price   >   50  "))# was testing if I can seperate all the queries
+    
