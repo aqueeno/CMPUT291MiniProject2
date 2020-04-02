@@ -72,6 +72,13 @@ def continue_query():
             print("Invalid input.\n")
             
 def process_text(string):
+    """
+    Takes the users string as input. Will process the text to 
+    extract all the queries. 
+    Exmaple: string = "score  < 3 pterm : amazon"
+    will be proccessed as ["pterm:amazon", "score<3"]
+    
+    """
     
     all_queries = []
     operators = ["=", ":", "<", ">"]
@@ -85,7 +92,6 @@ def process_text(string):
                 right_operand = right.split()[0]
             except IndexError:
                 invalid_input()
-            
             left = left.split()
             left.pop()
             right = right.split()
@@ -93,6 +99,7 @@ def process_text(string):
             stri = " "
             string = stri.join(left+right)
             all_queries.append(left_operand + operator+right_operand)
+            
     # add the inidivual standalone words to the query list
     string = string.split()
     for query in string:
@@ -101,8 +108,9 @@ def process_text(string):
     return all_queries
 
 def pterm_search(term, results):
+    # the user searches for a term in the product title
     rev_ids = []
-    if term.endswith("%"):
+    if term.endswith("%"): # wildcard at the end of term
         term = term.replace("%", "")
 
         row = pt_cur.first()
@@ -112,7 +120,7 @@ def pterm_search(term, results):
 
             row = pt_cur.next()
     else:
-
+        # no wildcard. Get the exact value using the key
         row = pt_cur.set(term.encode("utf-8"))
         while row is not None:
             rev_ids.append(row[1])
@@ -121,8 +129,9 @@ def pterm_search(term, results):
     results.append(set(rev_ids))
 
 def rterm_search(term, results):
+    # the user searches for a term in the review summary/text
     rev_ids = []
-    if term.endswith("%"):
+    if term.endswith("%"):# wildcard at the end of term
         term = term.replace("%", "")
 
         row = rt_cur.first()
@@ -131,7 +140,7 @@ def rterm_search(term, results):
                 rev_ids.append(row[1])
             row = rt_cur.next()
 
-    else:
+    else: # no wildcard. Get the exact value using the key
         row = rt_cur.set(term.encode("utf-8"))
         while row is not None:
                 rev_ids.append(row[1])
@@ -141,13 +150,16 @@ def rterm_search(term, results):
 
 
 def term_search(query, results):
-    left = query.split(":")[0]
+    '''
+    Decides which field the user is searching under
+    '''
+    field = query.split(":")[0]
     term = query.split(":")[1]
 
-    if left == "pterm":
+    if field == "pterm":
         pterm_search(term, results)
 
-    elif left == "rterm":
+    elif field == "rterm":
         rterm_search(term, results)
     else:
         invalid_input()
@@ -186,7 +198,11 @@ def single_term_search(query, results):
     results.append(set(rev_ids))
     
 def parse_text(raw_text):
-    
+    '''
+    Will take a string that is difficult to split, raw_text, 
+    and will parse is it using the shlex module. Returns a list 
+    of all the fields. (Intended for the reviews databse)
+    '''
     parsed = shlex.shlex(raw_text, punctuation_chars=True)
     parsed.whitespace_split = False
     parsed = list(parsed)
@@ -319,6 +335,10 @@ def range_search_smaller(query, results):
     
 
 def compute_results(queries, results):
+    '''
+    For each query the user specified, the right type of search will
+    be executed. The resulting review_ids will be added to the "results" list
+    '''
     global OUTPUT
     
     for query in queries:
@@ -333,14 +353,21 @@ def compute_results(queries, results):
 
         elif "=" in query:
             OUTPUT = query.split("=")[1]
-            #need to handle errors!!!
+            
 
-        else: #single words 
+        elif "%"in query or query.isalnum(): #single words 
             single_term_search(query, results)
+            
+        else:
+            invalid_input()
 
 
 def intersect(id_set):
-    
+    '''
+    id_set: a list contanings sets of tuples. 
+    The intersection of each tuple in the list will be taken
+    in order to get the shared review ids among all queries
+    '''
     intersect_ids = None
     
     for i in range(len(id_set)):
@@ -349,7 +376,11 @@ def intersect(id_set):
 
 
 def print_table(results):
-    
+    '''
+    Given a set of review ids, this function will format the text and 
+    print them out. Note: the printing style is dependent on 
+    which mode the user specifies (brief or full). Brief is the default mode. 
+    '''
     if not results:
         print("\nNo results matching the query...\n")
         return
@@ -365,23 +396,15 @@ def print_table(results):
     print("")
     for ID in results:
         string = rw_db.get(ID).decode("utf-8")
-        
-        # this code seperates based on commas but keeps strings in 
-        # quotes together.
-        # Ex. if string = '1, 2, "3, 4"', it would be split as ['1', '2', '3, 4']
-        row = shlex.shlex(string, punctuation_chars=True)
-        row.whitespace_split = False
-        row = list(row)
-        while "," in row:
-            row.remove(",")
+        row = parse_text(string)
         
         print("Review ID:", ID.decode("utf-8"))
-        
         for idx in range(len(fields)):
             print(fields[idx]+":", row[settings[idx]])
         print("")
         
 def invalid_input():
+    # upon invalid input, print an error message and quit the program
     print("\nInvalid input! Quitting program...\n")
     close_connection()
     exit(1)
@@ -394,9 +417,6 @@ def main():
         results = [] #all review_ids are added here
         user_input = input("Enter your search:\n> ")
 
-        # queries is a list containing ALL queries
-        # if the user entered "guitar price > 50"
-        # this list would contain ["guitar", "price>50"]
         queries = process_text(user_input.lower())
         
         # compute each query and add the searches to "results"
